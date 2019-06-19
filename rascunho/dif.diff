@@ -1,0 +1,662 @@
+diff -Naur ine5424/include/machine/cortex_a/aes.h ine5424-1/include/machine/cortex_a/aes.h
+--- ine5424/include/machine/cortex_a/aes.h	1969-12-31 19:00:00.000000000 -0500
++++ ine5424-1/include/machine/cortex_a/aes.h	2019-05-27 19:50:48.000000000 -0400
+@@ -0,0 +1,18 @@
++// EPOS ARM Cortex-M AES Mediator Declarations
++
++#ifndef __cortex_a_aes_h
++#define __cortex_a_aes_h
++
++#include <machine/aes.h>
++
++//TODO: this is just a place holder. Replace with Cortex-M AES!
++#include <utility/aes.h>
++
++__BEGIN_SYS
++
++template<unsigned int KEY_SIZE>
++class AES: private AES_Common, public _UTIL::AES<KEY_SIZE> {};
++
++__END_SYS
++
++#endif
+diff -Naur ine5424/include/machine/cortex_a/ic.h ine5424-1/include/machine/cortex_a/ic.h
+--- ine5424/include/machine/cortex_a/ic.h	2019-05-31 20:18:17.709905000 -0400
++++ ine5424-1/include/machine/cortex_a/ic.h	2019-06-03 13:30:08.000000000 -0400
+@@ -9,11 +9,134 @@
+ 
+ __BEGIN_SYS
+ 
+-class IC: private Engine
++class GIC: public IC_Common, protected Machine_Model
++{
++public:
++    // IRQs
++    static const unsigned int IRQS = Machine_Model::IRQS;
++    typedef Interrupt_Id IRQ;
++    enum {
++        IRQ_SOFTWARE0           = 0,
++        IRQ_SOFTWARE1           = 1,
++        IRQ_SOFTWARE2           = 2,
++        IRQ_SOFTWARE3           = 3,
++        IRQ_SOFTWARE4           = 4,
++        IRQ_SOFTWARE5           = 5,
++        IRQ_SOFTWARE6           = 6,
++        IRQ_SOFTWARE7           = 7,
++        IRQ_SOFTWARE8           = 8,
++        IRQ_SOFTWARE9           = 9,
++        IRQ_SOFTWARE10          = 10,
++        IRQ_SOFTWARE11          = 11,
++        IRQ_SOFTWARE12          = 12,
++        IRQ_SOFTWARE13          = 13,
++        IRQ_SOFTWARE14          = 14,
++        IRQ_SOFTWARE15          = 15,
++        IRQ_GIC0                = 16,
++        IRQ_GIC1                = 17,
++        IRQ_GIC2                = 18,
++        IRQ_GIC3                = 19,
++        IRQ_GIC4                = 20,
++        IRQ_GIC5                = 21,
++        IRQ_GIC6                = 22,
++        IRQ_GIC7                = 23,
++        IRQ_GIC8                = 24,
++        IRQ_GIC9                = 25,
++        IRQ_GIC10               = 26,
++        IRQ_GIC11_GLOBAL_TIMER  = 27,
++        IRQ_GIC12               = 28,
++        IRQ_GIC13               = 29,
++        IRQ_GIC14               = 30,
++        IRQ_GIC15               = 31,
++        IRQ_WATCHDOG            = 32,
++        IRQ_SOFTWARE            = 33,
++        IRQ_COMMRX              = 34,
++        IRQ_COMMTX              = 35,
++        IRQ_TIMER0AND1          = 36,
++        IRQ_TIMER2AND3          = 37,
++        IRQ_RTC                 = 42,
++        IRQ_UART0               = 44,
++        IRQ_UART1               = 45,
++        IRQ_UART2               = 46,
++        IRQ_UART3               = 47,
++        IRQ_DMAC                = 56,
++        IRQ_T1_INT0             = 64,
++        IRQ_T1_INT1             = 65,
++        IRQ_T1_INT2             = 66,
++        IRQ_T1_INT3             = 67,
++        IRQ_T1_INT4             = 68,
++        IRQ_T1_INT5             = 69,
++        IRQ_T1_INT6             = 70,
++        IRQ_T1_INT7             = 71,
++        IRQ_T2_INT0             = 72,
++        IRQ_T2_INT1             = 73,
++        IRQ_T2_INT2             = 74,
++        IRQ_T2_INT3             = 75,
++        IRQ_T2_INT4             = 76,
++        IRQ_T2_INT5             = 77,
++        IRQ_T2_INT6             = 78,
++        IRQ_T2_INT7             = 79,
++    };
++
++    // Interrupts
++    static const unsigned int INTS = 96;
++    static const unsigned int EXC_INT = 0;
++    enum {
++        INT_TIMER = IRQ_GIC11_GLOBAL_TIMER,
++        INT_USER_TIMER0  = IRQ_TIMER0AND1,
++        INT_USER_TIMER1  = IRQ_TIMER0AND1,
++        INT_USER_TIMER2  = IRQ_TIMER2AND3,
++        INT_USER_TIMER3  = IRQ_TIMER2AND3,
++        INT_RESCHEDULER  = IRQ_SOFTWARE0,
++    };
++
++public:
++    GIC() {}
++
++    static int irq2int(int i) { return i; }
++    static int int2irq(int i) { return i; }
++
++    static void enable() {
++        int_dist(GIC_DIST_SETENABLE0) = ~0;
++        int_dist(GIC_DIST_SETENABLE1) = ~0;
++        int_dist(GIC_DIST_SETENABLE2) = ~0;
++    }
++
++    static void enable(const Interrupt_Id & id) {
++        int_dist(GIC_DIST_SETENABLE0 + (id / 32) * 4) = 1 << (id % 32);
++    }
++
++    static void disable() {
++        int_dist(GIC_DIST_CLEARENABLE0) = ~0;
++        int_dist(GIC_DIST_CLEARENABLE1) = ~0;
++        int_dist(GIC_DIST_CLEARENABLE2) = ~0;
++    }
++
++    static void disable(const Interrupt_Id & id) {
++        int_dist(GIC_DIST_CLEARENABLE0 + (id / 32) * 4) = 1 << (id % 32);
++    }
++
++    // Only works in handler mode (inside IC::entry())
++    static Interrupt_Id int_id() { return CPU::flags() & 0x3f; }
++
++    static void init() {
++        // Set interrup priority mask
++        gic(GIC_PRIORITY_CONTROL) = 0xFF;
++        
++        // Enable CPU interface control register to signal interrupts
++        gic(GIC_CPU_CONTROL) = 1;
++    
++        // Enable distributor control register to send interrupts to CPUs
++        int_dist(GIC_DIST_CONTROL_REGISTER) = 1;
++    };
++};
++
++class IC: private GIC
+ {
+     friend class Machine;
+ 
+ private:
++    typedef GIC Engine;
+ 
+ public:
+     using IC_Common::Interrupt_Id;
+@@ -23,15 +146,6 @@
+     using Engine::INT_USER_TIMER1;
+     using Engine::INT_USER_TIMER2;
+     using Engine::INT_USER_TIMER3;
+-    using Engine::INT_GPIOA;
+-    using Engine::INT_GPIOB;
+-    using Engine::INT_GPIOC;
+-    using Engine::INT_GPIOD;
+-    using Engine::INT_USB0;
+-    using Engine::INT_NIC0_RX;
+-    using Engine::INT_NIC0_TX;
+-    using Engine::INT_NIC0_ERR;
+-    using Engine::INT_NIC0_TIMER;
+     using Engine::INT_RESCHEDULER;
+ 
+ public:
+diff -Naur ine5424/include/machine/cortex_a/machine.h ine5424-1/include/machine/cortex_a/machine.h
+--- ine5424/include/machine/cortex_a/machine.h	2019-05-31 20:18:17.709905000 -0400
++++ ine5424-1/include/machine/cortex_a/machine.h	2019-06-03 13:30:08.000000000 -0400
+@@ -27,7 +27,8 @@
+     static void poweroff();
+ 
+     static unsigned int n_cpus();
+-    static unsigned int cpu_id();
++
++    static unsigned int cpu_id() { return Machine_Model::cpu_id(); }
+ 
+     static void smp_barrier();
+     static void smp_init(unsigned int);
+diff -Naur ine5424/include/machine/cortex_a/realview_pbx.h ine5424-1/include/machine/cortex_a/realview_pbx.h
+--- ine5424/include/machine/cortex_a/realview_pbx.h	1969-12-31 19:00:00.000000000 -0500
++++ ine5424-1/include/machine/cortex_a/realview_pbx.h	2019-06-03 13:30:08.000000000 -0400
+@@ -0,0 +1,267 @@
++// EPOS LM3S811 (ARM Cortex-M3) MCU Mediator Declarations
++
++#ifndef __realview_pbx_h
++#define __realview_pbx_h
++
++#include <architecture/cpu.h>
++#include <architecture/tsc.h>
++#include <machine/rtc.h>
++#include <system.h>
++
++__BEGIN_SYS
++
++class RealView_PBX
++{
++    friend class TSC;
++
++protected:
++    typedef CPU::Reg32 Reg32;
++    typedef CPU::Log_Addr Log_Addr;
++
++public:
++    static const unsigned int IRQS = 96;
++    static const unsigned int TIMERS = 4;
++    static const unsigned int UARTS = 4;
++    static const unsigned int GPIO_PORTS = 3;
++    static const bool supports_gpio_power_up = false;
++
++    // Base addresses for memory-mapped I/O devices
++    enum {
++        // http://infocenter.arm.com/help/topic/com.arm.doc.dui0411d/DUI0411D_realview_platform_baseboard_ug.pdf
++        // https://wiki.osdev.org/User:Pancakes/arm_qemu_realview-pb-a
++        // http://infocenter.arm.com/help/topic/com.arm.doc.dui0440b/DUI0440B_realview_platform_baseboard_for_cortexa9_ug.pdf
++        // http://infocenter.arm.com/help/topic/com.arm.doc.ddi0407g/DDI0407G_cortex_a9_mpcore_r3p0_trm.pdf
++
++        SCR_BASE                = 0x10000000,
++        SYSTEM_CONTROLLER_BASE  = 0x10001000,
++
++        UART0_BASE              = 0x10009000,
++        UART1_BASE              = 0x1000a000,
++        UART2_BASE              = 0x1000b000,
++        UART3_BASE              = 0x1000c000,
++
++        WDT0_BASE               = 0x10010000,
++
++        GPIOA_BASE              = 0x10013000,
++        GPIOB_BASE              = 0x10014000,
++        GPIOC_BASE              = 0x10015000,
++
++        IC0_BASE                = 0x1e000000,
++        IC1_BASE                = 0x1e001000,
++        IC2_BASE                = 0x1e002000,
++        IC3_BASE                = 0x1e003000,
++
++        TIMER0_BASE             = 0x10011000,
++        TIMER1_BASE             = 0x10011020,
++        TIMER2_BASE             = 0x10012000,
++        TIMER3_BASE             = 0x10012020,
++
++        GIC2_BASE               = 0x1e020000,
++        GIC3_BASE               = 0x1e030000,
++        PERIPHERAL_BASE         = 0x1f000000,
++    };
++
++    // PERIPHERAL_BASE Offsets
++    enum {
++        SCU                 = 0X0000,
++        GIC                 = 0X0100,
++        GLOBAL_TIMER        = 0X0200,
++        PRIVATE_TIMERS      = 0x0600,
++        INT_DIST            = 0x1000,
++    };
++
++    // System Control Registers offsets to SCR_BASE
++    enum {
++        SRC_ID              = 0x000, // System Identity
++        SRC_SW              = 0x004,
++        SRC_LED             = 0x008,
++        SRC_OSC0            = 0x00C,
++        SRC_OSC1            = 0x010,
++        SRC_OSC2            = 0x014,
++        SRC_OSC3            = 0x018,
++        SRC_OSC4            = 0x01C,
++        SRC_LOCK            = 0x020,
++        SRC_HUNDRED_HZ      = 0x024,
++        SRC_CONFIGDATA      = 0x028,
++        SRC_FLAGS           = 0x030,
++        SRC_FLAGSSET        = 0x030,
++        SRC_FLAGSCLR        = 0x034,
++        SRC_NVFLAGS         = 0x038,
++        SRC_NVFLAGSSET      = 0x038,
++        SRC_NVFLAGSCCLR     = 0x03C,
++        SRC_PCICTL          = 0x044,
++        SRC_MCI             = 0x048,
++        SRC_FLASH           = 0x04C,
++        SRC_CLCD            = 0x050,
++        SRC_CLCDSER         = 0x054,
++        SRC_BOOTCS          = 0x058,
++        SRC_TWENTY_FOUR_MHZ = 0x05C,
++        SRC_MISC            = 0x060,
++        SRC_DMAPSR0         = 0x064,
++        SRC_DMAPSR1         = 0x068,
++        SRC_DMAPSR2         = 0x06C,
++        SRC_IOSEL           = 0x070,
++        SRC_PLDCTL          = 0x074,
++        SRC_BUSID           = 0x080,
++        SRC_PROCID          = 0x084,
++        SRC_OSCRESET        = 0x08C,
++        SRC_VOLTAGE         = 0x0A0,
++        SRC_TEST_OCS        = 0x0D4,
++    };
++
++    // GIC CPU Offsets
++    enum {
++        GIC_CPU_CONTROL      = 0x000,
++        GIC_PRIORITY_CONTROL = 0x004,
++        GIC_BINARY_POINT     = 0x008,
++        GIC_INT_ACK          = 0x00C,
++        GIC_EOI              = 0x010,
++        GIC_RUNNING_INT      = 0x014,
++        GIC_HIGHEST_INT      = 0x018,
++    };
++
++    // GIC Distributtors Offsets
++    enum {
++        GIC_DIST_CONTROL_REGISTER = 0x000,
++        GIC_DIST_SETENABLE0       = 0x100,
++        GIC_DIST_SETENABLE1       = 0x104,
++        GIC_DIST_SETENABLE2       = 0x108,
++        GIC_DIST_CLEARENABLE0     = 0x180,
++        GIC_DIST_CLEARENABLE1     = 0x184,
++        GIC_DIST_CLEARENABLE2     = 0x188,
++    };
++
++    // Global Timer Registers offsets
++    enum {                                      // Description
++        GTCTRL                      = 0x00,     // Low Counter
++        GTCTRH                      = 0x04,     // High Counter
++        GTCLR                       = 0x08,     // Control
++        GTISR                       = 0x0C      // Interrupt Status
++    };
++
++    // Useful bits in GTCLR
++    enum {                                         // Description                  Type    Value after reset
++        GT_TIMER_ENABLE                = 1 << 0,   // Enable                       r/w     0
++        GT_IRQ_EN                      = 1 << 2    // Enable interrupt             r/w     0
++    };
++
++    // Private Timer Registers offsets
++    enum {                                      // Description
++        PTLR                        = 0x00,     // Load
++        PTCTR                       = 0x04,     // Counter
++        PTCLR                       = 0x08,     // Control
++        PTISR                       = 0x0C      // Interrupt Status
++    };
++
++    // Useful bits in PTCLR
++    enum {                                         // Description                  Type    Value after reset
++        PT_TIMER_ENABLE                = 1 << 0,   // Enable                       r/w     0
++        PT_AUTO_RELOAD                 = 1 << 1,   // Auto reload                  r/w     0
++        PT_IRQ_EN                      = 1 << 2    // Enable interrupt             r/w     0
++    };
++
++    // Useful bits in PTISR
++    enum {                                          // Description                  Type    Value after reset
++        PT_INT_CLR                     = 1 << 0     // Interrupt clear bit          r/w     0
++    };
++
++protected:
++    RealView_PBX() {}
++
++    static void reboot() {
++        // Reg32 val = scs(AIRCR) & (~((-1u / VECTKEY) * VECTKEY));
++        // val |= 0x05fa * VECTKEY | SYSRESREQ;
++        // scs(AIRCR) = val;
++    }
++
++    static void delay(const RTC::Microsecond & time) {
++        // assert(Traits<TSC>::enabled);
++        // unsigned long long ts = static_cast<unsigned long long>(time) * TSC::frequency() / 1000000;
++        // tsc(GPTMTAILR) = ts;
++        // tsc(GPTMTAPR) = ts >> 32;
++        // tsc(GPTMCTL) |= TAEN;
++        // while(!(tsc(GPTMRIS) & TATO_INT));
++        // tsc(GPTMCTL) &= ~TAEN;
++        // tsc(GPTMICR) |= TATO_INT;
++    }
++
++    static const UUID & uuid() { return System::info()->bm.uuid; } // TODO: System_Info is not populated in this machine
++
++    static unsigned int cpu_id() {
++        int id;
++        ASM("mrc p15, 0, %0, c0, c0, 5" : "=r"(id) : : );
++        return id & 0x3;
++    }
++
++    // Device enabling
++    static void enable_uart(unsigned int unit) {
++        // assert(unit < UARTS);
++        // power_uart(unit, FULL);
++        // gpioa(AFSEL) |= 3 << (unit * 2);                // Pins A[1:0] are multiplexed between GPIO and UART 0. Select UART.
++        // gpioa(DEN) |= 3 << (unit * 2);                  // Enable digital I/O on Pins A[1:0]
++    }
++
++    // Power Management
++    static void power_uart(unsigned int unit, const Power_Mode & mode) {
++        // assert(unit < UARTS);
++        // switch(mode) {
++        // case ENROLL:
++        // 	break;
++        // case DISMISS:
++        // 	break;
++        // case SAME:
++        // 	break;
++        // case FULL:
++        // 	break;
++        // case LIGHT:
++        // 	break;
++        // case SLEEP:
++        //     scr(RCGC1) |= 1 << unit;                   // Activate UART "unit" clock
++        //     scr(RCGC2) |= 1 << unit;                   // Activate port "unit" clock
++        //     break;
++        // case OFF:
++        //     scr(RCGC1) &= ~(1 << unit);                // Deactivate UART "unit" clock
++        //     scr(RCGC2) &= ~(1 << unit);                // Deactivate port "unit" clock
++        //     break;
++        // }
++    }
++
++    static void power_user_timer(unsigned int unit, const Power_Mode & mode) {
++        // assert(unit < TIMERS);
++        // switch(mode) {
++        // case ENROLL:
++        // 	break;
++        // case DISMISS:
++        // 	break;
++        // case SAME:
++        // 	break;
++        // case FULL:
++        // 	break;
++        // case LIGHT:
++        // 	break;
++        // case SLEEP:
++        //     scr(RCGC1) |= 1 << (unit + 16);             // Activate GPTM "unit" clock
++        //     break;
++        // case OFF:
++        //     scr(RCGC1) &= ~(1 << (unit + 16));          // Deactivate GPTM "unit" clock
++        //     break;
++        // }
++    }
++
++
++public:
++    static volatile Reg32 & int_dist(unsigned int o) { return reinterpret_cast<volatile Reg32 *>(PERIPHERAL_BASE + INT_DIST)[o / sizeof(Reg32)]; }
++    static volatile Reg32 & gic(unsigned int o) { return reinterpret_cast<volatile Reg32 *>(PERIPHERAL_BASE + GIC)[o / sizeof(Reg32)]; }
++    static volatile Reg32 & global_timer(unsigned int o) { return reinterpret_cast<volatile Reg32 *>(PERIPHERAL_BASE + GLOBAL_TIMER)[o / sizeof(Reg32)]; }
++    static volatile Reg32 & priv_timer(unsigned int o) { return reinterpret_cast<volatile Reg32 *>(PERIPHERAL_BASE + TIMER0_BASE)[o / sizeof(Reg32)]; }
++
++protected:
++    static void pre_init();
++    static void init();
++};
++
++typedef RealView_PBX Machine_Model;
++
++__END_SYS
++
++#endif
+diff -Naur ine5424/include/machine/cortex_a/realview_pbx_traits.h ine5424-1/include/machine/cortex_a/realview_pbx_traits.h
+--- ine5424/include/machine/cortex_a/realview_pbx_traits.h	1969-12-31 19:00:00.000000000 -0500
++++ ine5424-1/include/machine/cortex_a/realview_pbx_traits.h	2019-06-06 12:41:34.671889000 -0400
+@@ -0,0 +1,104 @@
++// EPOS LM3S811 (ARM Cortex-M3) MCU Metainfo and Configuration
++
++#ifndef __machine_traits_h
++#define __machine_traits_h
++
++#include <system/config.h>
++
++__BEGIN_SYS
++
++class Machine_Common;
++template <>
++struct Traits<Machine_Common> : public Traits<void>
++{
++  static const bool debugged = Traits<void>::debugged;
++};
++
++//configuração da maquina realview
++template <>
++struct Traits<Machine> : public Traits<Machine_Common>
++{
++  static const unsigned int CPUS = Traits<Build>::CPUS;
++  // Physical Memory
++  static const unsigned int MEM_BASE = 0x10060000;
++  static const unsigned int MEM_TOP = 0x1007FFF8; //(0x10080000-4),
++
++  static const unsigned int BOOT_STACK = 0x1007FFF4; //(7FFF8 - 4) // MEM_TOP - sizeof(int)
++
++  static const unsigned int APP_LOW = 0x10060000;
++
++  static const unsigned int APP_CODE = 0x00010000;
++
++  static const unsigned int APP_DATA = 0x10060000;
++  static const unsigned int APP_HIGH = 0X1007EFF8; // 8 KB
++
++  static const unsigned int PHY_MEM = 0x10060000;
++  static const unsigned int IO_BASE = 0x10000000;
++  static const unsigned int IO_TOP = 0x1001FFFC; //(0x10020000-4)
++
++  //os s do sistema
++  static const unsigned int SYS = 0x00200000;      //endereço base do systema
++  static const unsigned int SYS_CODE = 0x00200000; // Library mode only => APP + SYS
++  static const unsigned int SYS_DATA = 0x10062000; // Library mode only => APP + SYS
++
++  // Default Sizes and Quantities
++  static const unsigned int STACK_SIZE = 512; //atribuimos toda o SRAM ao stack
++  static const unsigned int HEAP_SIZE = 512;  //atribuimos toda o SRAM ao heap
++  static const unsigned int MAX_THREADS = 1;
++};
++
++//configuração do IC(controle de interrrupção) da maquina
++template <>
++struct Traits<IC> : public Traits<Machine_Common>
++{
++  static const bool debugged = hysterically_debugged;
++};
++
++//configuração do Timer da maquina
++template <>
++struct Traits<Timer> : public Traits<Machine_Common>
++{
++  static const bool debugged = hysterically_debugged;
++
++  // Meaningful values for the timer frequency range from 100 to
++  // 10000 Hz. The choice must respect the scheduler time-slice, i. e.,
++  // it must be higher than the scheduler invocation frequency.
++  static const int FREQUENCY = 1000; // Hz
++};
++
++template <>
++
++//configuração do UART
++struct Traits<UART> : public Traits<Machine_Common>
++{
++  static const unsigned int UNITS = 2; //UART0 e UART1
++
++  static const unsigned int CLOCK = Traits<CPU>::CLOCK;
++
++  static const unsigned int DEF_UNIT = 1;
++  static const unsigned int DEF_BAUD_RATE = 115200;
++  static const unsigned int DEF_DATA_BITS = 8;
++  static const unsigned int DEF_PARITY = 0; // none
++  static const unsigned int DEF_STOP_BITS = 1;
++};
++
++//
++
++// //configuração do USB da maquina
++// template <>
++// struct Traits<USB> : public Traits<Machine_Common>
++// {
++//   static const bool enabled = false;
++//   static const unsigned int UNITS = 0;
++//   static const bool blocking = true;
++// };
++
++// template <>
++// struct Traits<Scratchpad> : public Traits<Machine_Common>
++// {
++//   static const bool enabled = false;
++// };
++
++__END_SYS
++
++#endif
+diff -Naur ine5424/include/machine/cortex_a/timer.h ine5424-1/include/machine/cortex_a/timer.h
+--- ine5424/include/machine/cortex_a/timer.h	2019-05-31 20:18:17.709905000 -0400
++++ ine5424-1/include/machine/cortex_a/timer.h	2019-06-03 13:30:08.000000000 -0400
+@@ -12,8 +12,80 @@
+ 
+ __BEGIN_SYS
+ 
++// Cortex-A Private Timer
++class System_Timer_Engine: public Machine_Model
++{
++public:
++    typedef CPU::Reg32 Count;
++    static const unsigned int CLOCK = Traits<CPU>::CLOCK / 2;
++
++protected:
++    System_Timer_Engine() {}
++
++public:
++    static TSC::Hertz clock() { return CLOCK; }
++
++    static void enable() { priv_timer(PTCLR) |= PT_TIMER_ENABLE; }
++    static void disable() { priv_timer(PTCLR) &= ~PT_TIMER_ENABLE; }
++
++    static void eoi(const IC::Interrupt_Id & int_id) { priv_timer(PTISR) = PT_INT_CLR; }
++
++    void power(const Power_Mode & mode);
++
++    static void init(unsigned int f) {
++        priv_timer(PTCLR) = 0;
++        priv_timer(PTISR) = PT_INT_CLR;
++        priv_timer(PTLR) = CLOCK / f;
++        priv_timer(PTCLR) = PT_IRQ_EN | PT_AUTO_RELOAD;
++    }
++};
++
++// Cortex-A Global Timer
++class User_Timer_Engine: public Machine_Model
++{
++protected:
++    typedef CPU::Reg64 Count;
++    typedef TSC::Hertz Hertz;
++
++public:
++    static const Hertz CLOCK = Traits<CPU>::CLOCK / 2;
++
++public:
++    User_Timer_Engine(unsigned int channel, const Count & count, bool interrupt = true, bool periodic = true);
++
++    static Hertz clock() { return CLOCK; }
++
++    Count read() {
++        Reg32 high, low;
++
++        do {
++            high = global_timer(GTCTRH);
++            low = global_timer(GTCTRL);
++        } while(global_timer(GTCTRH) != high);
++
++        return static_cast<Count>(high) << 32 | low;
++    }
++
++    static void enable();
++    static void disable();
++
++    void set(const Count & count) {
++        // Disable counting before programming
++        global_timer(GTCLR) = 0;
++
++        global_timer(GTCTRL) = count & 0xffffffff;
++        global_timer(GTCTRH) = count >> 32;
++
++        // Re-enable counting
++        global_timer(GTCLR) = 1;
++    }
++
++protected:
++    static void eoi(const IC::Interrupt_Id & int_id) {}
++};
++
+ // Tick timer used by the system
+-class Timer: private Timer_Common, private Engine
++class Timer: private Timer_Common, private System_Timer_Engine
+ {
+     friend class Machine;
+     friend class Init_System;
+@@ -22,6 +94,7 @@
+     static const unsigned int CHANNELS = 2;
+     static const unsigned int FREQUENCY = Traits<Timer>::FREQUENCY;
+ 
++    typedef System_Timer_Engine Engine;
+     typedef Engine::Count Count;
+     typedef IC::Interrupt_Id Interrupt_Id;
+ 

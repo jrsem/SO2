@@ -1,0 +1,19 @@
+sustem -->Application-->first
+==
+b _start  //no fim do reset
+
+====
+ldr r1 =_boot_stack
+===
+Realview::pre_init(){
+asm( "MCR p15,0,%0,c12,c0,0"p"(Trait<mchine>::vector_table))
+====
+
+MEM_BASE =0000000
+APPLOW=0000
+IOBASE =FE000000
+===
+ic:: dispartch
+==
+grupo timer: enable+interrupção+frequency
+TSC(.h) -> Timer global
